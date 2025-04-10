@@ -22,13 +22,12 @@ client = gspread.authorize(creds)
 # 접근할 구글 시트 URL 입력
 sheet_url = 'https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0'
 
-# 시트 열기 (첫 번째 시트, 다른 시트 이름도 가능)
-sheet = client.open_by_url(sheet_url).sheet1
+# 시트 열기 (Result 시트 지정)
+sheet = client.open_by_url(sheet_url).worksheet("Result")
 
 # 데이터 전체 가져오기 (리스트 형태)
 data = sheet.get_all_records()
 
-# pandas DataFrame으로 변환해서 편리하게 보기
+# pandas DataFrame으로 변환해서 보기
 df = pd.DataFrame(data)
-
 print(df.head())
