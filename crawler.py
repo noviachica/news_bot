@@ -11,35 +11,41 @@ from datetime import datetime
 print("1. 시작...")
 
 # ✅ STEP 1: Google Sheets에서 데이터 불러오기
-try:
+def get_google_sheets_data():
     print("2. Google 서비스 계정 키 파일 읽기 시도...")
-    with open('google_credentials.json', 'r') as f:
-        creds_json = json.load(f)
-    print("3. Google 서비스 계정 키 파일 읽기 성공")
-
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    print("4. Google Sheets 인증 시도...")
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-    client = gspread.authorize(creds)
-    print("5. Google Sheets 인증 성공")
-
-    print("6. 스프레드시트 접근 시도...")
-    sheet_url = 'https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0'
-    sheet = client.open_by_url(sheet_url).worksheet("Result")
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    print("7. 스프레드시트 데이터 로드 성공")
-    print(f"8. 총 {len(df)}개의 기사가 있습니다.")
-
-except Exception as e:
-    print(f"❌ Google Sheets 접근 중 오류 발생: {e}")
-    exit(1)
+    
+    try:
+        # 환경 변수에서 JSON 문자열을 읽어서 파싱
+        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
+        if not credentials_json:
+            raise ValueError("GOOGLE_CREDENTIALS 환경 변수가 설정되지 않았습니다.")
+            
+        print("3. JSON 데이터 길이:", len(credentials_json))
+        print("4. JSON 데이터 시작 부분:", credentials_json[:100])  # 처음 100자만 출력
+        
+        credentials_dict = json.loads(credentials_json)
+        credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+            credentials_dict,
+            ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        )
+        
+        gc = gspread.authorize(credentials)
+        print("5. Google Sheets 인증 성공")
+        
+        # 스프레드시트 열기
+        spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1QJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQ/edit#gid=0')
+        worksheet = spreadsheet.get_worksheet(0)
+        print("6. 스프레드시트 접근 성공")
+        
+        # 데이터 가져오기
+        data = worksheet.get_all_records()
+        print(f"7. 총 {len(data)}개의 레코드를 가져왔습니다.")
+        return data
+        
+    except Exception as e:
+        print(f"❌ Google Sheets 접근 중 오류 발생: {str(e)}")
+        print(f"오류 유형: {type(e).__name__}")
+        raise
 
 # ✅ STEP 2: 기사 본문 크롤러 정의
 def extract_article_text(url):
