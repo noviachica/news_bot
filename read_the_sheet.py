@@ -58,5 +58,5 @@ def upload_to_gist(json_data, github_token, filename='news_batch.json', descript
         return None
 
 # ✅ STEP 4: 실제 실행
-GITHUB_TOKEN = os.environ['GIST_TOKEN']  # GitHub Personal Access Token은 GitHub Secrets에 저장 필요
+GITHUB_TOKEN = os.environ['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']  # GitHub Personal Access Token은 GitHub Secrets에 저장 필요
 upload_to_gist(json_content, GITHUB_TOKEN)
