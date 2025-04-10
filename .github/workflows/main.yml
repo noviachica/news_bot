@@ -17,4 +17,4 @@ jobs:
           pip install -r requirements.txt
           python read_the_sheet.py
         env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}  # <-- 이 부분이 꼭 있어야 해!
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIAL }}  # <-- 이 부분이 꼭 있어야 해!
