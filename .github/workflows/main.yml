@@ -2,7 +2,7 @@ name: 자동화 파이썬 실행하기
 
 on:
   schedule:
-    - cron: '30 8 * * *'  # 매일 오전 8시 30분
+    - cron: '30 23 * * *'  # 오전 8:30 KST = 전날 11:30 UTC
   workflow_dispatch:
 
 jobs:
