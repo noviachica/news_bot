@@ -40,7 +40,11 @@ def get_google_sheets_data():
         # 데이터 가져오기
         data = worksheet.get_all_records()
         print(f"7. 총 {len(data)}개의 레코드를 가져왔습니다.")
-        return data
+        
+        # DataFrame으로 변환
+        df = pd.DataFrame(data)
+        print("8. DataFrame 변환 완료")
+        return df
         
     except Exception as e:
         print(f"❌ Google Sheets 접근 중 오류 발생: {str(e)}")
@@ -122,6 +126,7 @@ def extract_article_text(url):
 # ✅ STEP 3: 기사 본문 열 추가
 print("\n9. 기사 본문 크롤링 시작...")
 try:
+    df = get_google_sheets_data()  # DataFrame 가져오기
     df['본문'] = df['링크'].apply(extract_article_text)
     print("10. 기사 본문 크롤링 완료")
 except Exception as e:
