@@ -1,4 +1,4 @@
-name: 자동화 파이썬 실행하기
+name: News Crawler
 
 on:
   schedule:
@@ -22,11 +22,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install gspread oauth2client pandas requests beautifulsoup4
     
-    - name: Create credentials file
-      run: |
-        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > google_credentials.json
-    
     - name: Run crawler
-      run: python crawler.py
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIAL }}
+      run: |
+        echo "환경 변수 확인:"
+        echo "GOOGLE_CREDENTIALS 길이: ${#GOOGLE_CREDENTIALS}"
+        echo "GOOGLE_CREDENTIALS 시작 부분: ${GOOGLE_CREDENTIALS:0:100}"
+        python crawler.py 
