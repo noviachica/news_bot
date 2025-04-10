@@ -3,7 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 
 # 서비스 계정 JSON 파일명 입력
-json_keyfile = 'auto-sheet-abcdef123456.json'
+json_keyfile = 'new-clipping-1a397f0857b1.json'
 
 # Google Sheets API 인증 범위 설정
 scope = [
