@@ -18,10 +18,17 @@ def get_google_sheets_data():
         # 환경 변수에서 JSON 문자열을 읽어서 파싱
         credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
         if not credentials_json:
+            print("환경 변수 내용:")
+            print(os.environ)
             raise ValueError("GOOGLE_CREDENTIALS 환경 변수가 설정되지 않았습니다.")
             
         print("3. JSON 데이터 길이:", len(credentials_json))
         print("4. JSON 데이터 시작 부분:", credentials_json[:100])  # 처음 100자만 출력
+        
+        # JSON 문자열을 파일로 저장하여 디버깅
+        with open('temp_credentials.json', 'w') as f:
+            f.write(credentials_json)
+        print("5. 임시 credentials 파일 저장 완료")
         
         credentials_dict = json.loads(credentials_json)
         credentials = ServiceAccountCredentials.from_json_keyfile_dict(
@@ -30,20 +37,20 @@ def get_google_sheets_data():
         )
         
         gc = gspread.authorize(credentials)
-        print("5. Google Sheets 인증 성공")
+        print("6. Google Sheets 인증 성공")
         
         # 스프레드시트 열기
         spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1QJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQ/edit#gid=0')
         worksheet = spreadsheet.get_worksheet(0)
-        print("6. 스프레드시트 접근 성공")
+        print("7. 스프레드시트 접근 성공")
         
         # 데이터 가져오기
         data = worksheet.get_all_records()
-        print(f"7. 총 {len(data)}개의 레코드를 가져왔습니다.")
+        print(f"8. 총 {len(data)}개의 레코드를 가져왔습니다.")
         
         # DataFrame으로 변환
         df = pd.DataFrame(data)
-        print("8. DataFrame 변환 완료")
+        print("9. DataFrame 변환 완료")
         return df
         
     except Exception as e:
@@ -124,20 +131,20 @@ def extract_article_text(url):
         return f"[크롤링 에러] {e}"
 
 # ✅ STEP 3: 기사 본문 열 추가
-print("\n9. 기사 본문 크롤링 시작...")
+print("\n10. 기사 본문 크롤링 시작...")
 try:
     df = get_google_sheets_data()  # DataFrame 가져오기
     df['본문'] = df['링크'].apply(extract_article_text)
-    print("10. 기사 본문 크롤링 완료")
+    print("11. 기사 본문 크롤링 완료")
 except Exception as e:
     print(f"❌ 크롤링 중 오류 발생: {e}")
     exit(1)
 
 # ✅ STEP 4: JSON 변환
-print("11. JSON 변환 시작...")
+print("12. JSON 변환 시작...")
 try:
     json_content = df.to_json(orient='records', force_ascii=False, indent=2)
-    print("12. JSON 변환 완료")
+    print("13. JSON 변환 완료")
 except Exception as e:
     print(f"❌ JSON 변환 중 오류 발생: {e}")
     exit(1)
@@ -145,7 +152,7 @@ except Exception as e:
 # ✅ STEP 5: GitHub Repository 업데이트 함수
 def update_github_repo(json_data, github_token, repo_name, file_path='news_batch.json'):
     try:
-        print("13. GitHub Repository 업데이트 시도...")
+        print("14. GitHub Repository 업데이트 시도...")
         # GitHub API 엔드포인트
         url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}"
         print(f"API URL: {url}")
