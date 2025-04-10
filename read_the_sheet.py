@@ -3,11 +3,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import os
 import json
+import requests
 
-# GitHub Secret에서 JSON 키를 불러오는 방식으로 변경
+# ✅ STEP 1: Google Sheets에서 데이터 읽기
 creds_json = json.loads(os.environ['GOOGLE_CREDENTIALS'])
 
-# Google Sheets API 인증 범위 설정
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -15,19 +15,48 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# 인증 및 시트 접근 준비 (키파일 대신 dict 사용)
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 client = gspread.authorize(creds)
 
-# 접근할 구글 시트 URL 입력
 sheet_url = 'https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0'
-
-# 시트 열기 (Result 시트 지정)
 sheet = client.open_by_url(sheet_url).worksheet("Result")
-
-# 데이터 전체 가져오기 (리스트 형태)
 data = sheet.get_all_records()
-
-# pandas DataFrame으로 변환해서 보기
 df = pd.DataFrame(data)
+
+print("✅ Google Sheets에서 데이터 읽기 완료!")
 print(df.head())
+
+# ✅ STEP 2: JSON 변환
+json_content = df.to_json(orient='records', force_ascii=False, indent=2)
+
+# ✅ STEP 3: Gist에 업로드
+def upload_to_gist(json_data, github_token, filename='news_batch.json', description='뉴스 JSON 자동 업로드'):
+    url = "https://api.github.com/gists"
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    payload = {
+        "description": description,
+        "public": True,
+        "files": {
+            filename: {
+                "content": json_data
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+
+    if response.status_code == 201:
+        gist_url = response.json()['html_url']
+        raw_url = response.json()['files'][filename]['raw_url']
+        print(f"✅ Gist 업로드 성공!\n📄 Gist 주소: {gist_url}\n🌐 Raw 파일 주소: {raw_url}")
+        return raw_url
+    else:
+        print(f"❌ 업로드 실패: {response.status_code}\n{response.text}")
+        return None
+
+# ✅ STEP 4: 실제 실행
+GITHUB_TOKEN = os.environ['GIST_TOKEN']  # GitHub Personal Access Token은 GitHub Secrets에 저장 필요
+upload_to_gist(json_content, GITHUB_TOKEN)
