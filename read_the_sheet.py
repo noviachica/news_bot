@@ -30,15 +30,13 @@ print(df.head())
 json_content = df.to_json(orient='records', force_ascii=False, indent=2)
 
 # ✅ STEP 3: Gist에 업로드
-def upload_to_gist(json_data, github_token, filename='news_batch.json', description='뉴스 JSON 자동 업로드'):
-    url = "https://api.github.com/gists"
+def update_gist(json_data, github_token, gist_id, filename='news_batch.json'):
+    url = f"https://api.github.com/gists/{gist_id}"
     headers = {
         "Authorization": f"Bearer {github_token}",
         "Accept": "application/vnd.github.v3+json"
     }
     payload = {
-        "description": description,
-        "public": True,
         "files": {
             filename: {
                 "content": json_data
@@ -46,17 +44,19 @@ def upload_to_gist(json_data, github_token, filename='news_batch.json', descript
         }
     }
 
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    response = requests.patch(url, headers=headers, data=json.dumps(payload))
 
-    if response.status_code == 201:
-        gist_url = response.json()['html_url']
+    if response.status_code == 200:
         raw_url = response.json()['files'][filename]['raw_url']
-        print(f"✅ Gist 업로드 성공!\n📄 Gist 주소: {gist_url}\n🌐 Raw 파일 주소: {raw_url}")
+        print(f"✅ Gist 업데이트 성공!\n🌐 Raw 파일 주소: {raw_url}")
         return raw_url
     else:
-        print(f"❌ 업로드 실패: {response.status_code}\n{response.text}")
+        print(f"❌ 업데이트 실패: {response.status_code}\n{response.text}")
         return None
+
 
 # ✅ STEP 4: 실제 실행
 GITHUB_TOKEN = os.environ['GIST_TOKEN']
-upload_to_gist(json_content, GITHUB_TOKEN)
+GIST_ID = "97a5c5e30792c31542cb0845a8af6b9f"  # <- 네가 복사한 Gist ID 넣기
+update_gist(json_content, GITHUB_TOKEN, GIST_ID)
+
