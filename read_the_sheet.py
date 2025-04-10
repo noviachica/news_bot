@@ -1,9 +1,11 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import os
+import json
 
-# 서비스 계정 JSON 파일명 입력
-json_keyfile = 'new-clipping-1a397f0857b1.json'
+# GitHub Secret에서 JSON 키를 불러오는 방식으로 변경
+creds_json = json.loads(os.environ['GOOGLE_CREDENTIALS'])
 
 # Google Sheets API 인증 범위 설정
 scope = [
@@ -13,8 +15,8 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# 인증 및 시트 접근 준비
-creds = ServiceAccountCredentials.from_json_keyfile_name(json_keyfile, scope)
+# 인증 및 시트 접근 준비 (키파일 대신 dict 사용)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 client = gspread.authorize(creds)
 
 # 접근할 구글 시트 URL 입력
