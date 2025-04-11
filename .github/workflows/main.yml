@@ -9,6 +9,11 @@ jobs:
   crawl:
     runs-on: ubuntu-latest
     
+    # GitHub 토큰 권한 설정
+    permissions:
+      contents: write  # 저장소 내용 수정 권한
+      pull-requests: write  # PR 생성 권한
+    
     steps:
     - uses: actions/checkout@v3
     
@@ -32,4 +37,4 @@ jobs:
         echo "GOOGLE_CREDENTIALS 시작 부분: ${GOOGLE_CREDENTIALS:0:100}"
         echo "GITHUB_TOKEN 길이: ${#GITHUB_TOKEN}"
         echo "GITHUB_TOKEN 시작 부분: ${GITHUB_TOKEN:0:10}..."
-        python crawler.py 
+        python crawler.py
