@@ -170,31 +170,27 @@ def main():
             }
             result.append(article)
         
-        # JSON 파일로 저장
-        output_file = 'news_data.json'
-        with open(output_file, 'w', encoding='utf-8') as f:
+        # 임시 파일로 먼저 저장
+        temp_file = 'temp_news_data.json'
+        with open(temp_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"크롤링 결과를 {output_file}에 저장했습니다.")
+        logger.info(f"크롤링 결과를 {temp_file}에 저장했습니다.")
         
-        # 파일 존재 여부와 내용 확인
-        if os.path.exists(output_file):
-            logger.info(f"{output_file} 파일이 성공적으로 생성되었습니다.")
-            file_size = os.path.getsize(output_file)
-            logger.info(f"파일 크기: {file_size} bytes")
-            
-            # 파일 내용 일부 확인
-            with open(output_file, 'r', encoding='utf-8') as f:
-                content = f.read(500)  # 처음 500자만 읽기
-                logger.info(f"파일 내용 시작 부분:\n{content}")
-        else:
-            logger.error(f"{output_file} 파일이 생성되지 않았습니다.")
-            raise FileNotFoundError(f"{output_file} 파일이 생성되지 않았습니다.")
+        # 파일이 제대로 생성되었는지 확인
+        if not os.path.exists(temp_file):
+            raise FileNotFoundError(f"{temp_file} 파일이 생성되지 않았습니다.")
+        
+        # 파일 크기 확인
+        file_size = os.path.getsize(temp_file)
+        if file_size == 0:
+            raise ValueError(f"{temp_file} 파일이 비어있습니다.")
+        
+        logger.info(f"임시 파일 크기: {file_size} bytes")
         
         # shorten.py 실행
         logger.info("중복 제거를 시작합니다...")
         try:
-            logger.info("shorten.py 실행 시도...")
             result = subprocess.run(['python', 'shorten.py'], check=True, capture_output=True, text=True)
             logger.info(f"shorten.py 실행 결과: {result.stdout}")
             if result.stderr:
@@ -203,6 +199,13 @@ def main():
             logger.error(f"shorten.py 실행 실패: {str(e)}")
             logger.error(f"오류 출력: {e.stderr}")
             raise
+        
+        # 최종 파일 확인
+        if os.path.exists('news_data.json'):
+            final_size = os.path.getsize('news_data.json')
+            logger.info(f"최종 파일 크기: {final_size} bytes")
+        else:
+            raise FileNotFoundError("최종 news_data.json 파일이 생성되지 않았습니다.")
         
     except Exception as e:
         logger.error(f"프로그램 실행 중 오류 발생: {str(e)}")
