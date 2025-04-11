@@ -214,6 +214,19 @@ def main():
         if not os.path.exists(input_file):
             raise FileNotFoundError(f"{input_file} 파일이 존재하지 않습니다.")
         
+        # 파일 크기 확인
+        file_size = os.path.getsize(input_file)
+        if file_size == 0:
+            raise ValueError(f"{input_file} 파일이 비어있습니다.")
+        
+        logger.info(f"입력 파일 크기: {file_size} bytes")
+        
+        # 파일 내용 확인
+        with open(input_file, 'r', encoding='utf-8') as f:
+            content = f.read(500)
+            logger.info(f"입력 파일 내용 시작 부분:\n{content}")
+        
+        # JSON 데이터 로드
         with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -241,6 +254,11 @@ def main():
         if os.path.exists(output_file):
             file_size = os.path.getsize(output_file)
             logger.info(f"출력 파일 크기: {file_size} bytes")
+            
+            # 파일 내용 확인
+            with open(output_file, 'r', encoding='utf-8') as f:
+                content = f.read(500)
+                logger.info(f"출력 파일 내용 시작 부분:\n{content}")
         else:
             raise FileNotFoundError(f"{output_file} 파일이 생성되지 않았습니다.")
         
