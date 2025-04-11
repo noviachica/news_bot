@@ -225,97 +225,73 @@ def calculate_similarity(text1, text2):
         print(f"유사도 계산 중 오류: {e}")
         return 0.0
 
-def find_similar_articles(group, similarity_threshold=0.7):
-    """유사한 기사들을 찾아 그룹화"""
-    print(f"  - 유사도 분석 시작 (임계값: {similarity_threshold})")
-    print(f"  - 분석 대상 기사 수: {len(group)}")
+def group_similar_articles(articles, similarity_threshold=0.3):
+    """
+    유사한 기사를 그룹화합니다.
+    similarity_threshold: 유사도 임계값 (기본값 0.3)
+    """
+    if not articles:
+        return []
     
     # 텍스트 전처리
-    texts = group['본문'].apply(preprocess_text).tolist()
+    texts = [preprocess_text(article['내용']) for article in articles]
     
-    # 유사도 행렬 계산
+    # TF-IDF 벡터화
     vectorizer = TfidfVectorizer(
-        max_features=10000,
-        min_df=2,
-        max_df=0.95
+        max_features=10000,  # 최대 단어 수 제한
+        min_df=2,           # 최소 2개 문서에서 등장
+        max_df=0.95         # 최대 95% 문서에서 등장
     )
+    tfidf_matrix = vectorizer.fit_transform(texts)
     
-    try:
-        tfidf_matrix = vectorizer.fit_transform(texts)
-        similarity_matrix = cosine_similarity(tfidf_matrix)
-        
-        # 유사도 분포 분석
-        similarities = similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)]
-        print(f"  - 평균 유사도: {np.mean(similarities):.3f}")
-        print(f"  - 최대 유사도: {np.max(similarities):.3f}")
-        print(f"  - 최소 유사도: {np.min(similarities):.3f}")
-        
-    except Exception as e:
-        print(f"  - 유사도 계산 실패: {e}")
-        return group
+    # 코사인 유사도 계산
+    similarity_matrix = cosine_similarity(tfidf_matrix)
     
-    # 유사한 기사 그룹화
-    similar_groups = []
+    # 그룹화
+    groups = []
     used_indices = set()
     
-    for i in range(len(texts)):
+    # 각 기사에 대해
+    for i in range(len(articles)):
         if i in used_indices:
             continue
             
-        # 현재 기사와 유사한 기사 찾기
-        similar_indices = np.where(similarity_matrix[i] > similarity_threshold)[0]
-        similar_indices = [idx for idx in similar_indices if idx not in used_indices]
+        # 현재 기사와 유사한 기사들을 찾음
+        similar_indices = [j for j in range(len(articles)) 
+                         if similarity_matrix[i][j] > similarity_threshold 
+                         and j not in used_indices]
         
         if similar_indices:
-            # 유사한 기사들을 하나의 그룹으로
-            group_articles = group.iloc[similar_indices]
-            similar_groups.append(group_articles)
+            # 그룹 내 기사들을 발행일 순으로 정렬
+            group_articles = [articles[idx] for idx in similar_indices]
+            group_articles.sort(key=lambda x: x['발행일'], reverse=True)
             
-            # 사용된 인덱스 표시
-            used_indices.update(similar_indices)
-            print(f"  - 유사 기사 그룹 {len(similar_groups)}: {len(similar_indices)}개 기사")
-            print(f"    - 대표 기사: {group.iloc[i]['신문사']} - {group.iloc[i]['제목'][:30]}...")
-            print(f"    - 유사도 범위: {np.min(similarity_matrix[i, similar_indices]):.3f} ~ {np.max(similarity_matrix[i, similar_indices]):.3f}")
+            # 그룹 내 기사 수가 2개 이상인 경우에만 추가
+            if len(group_articles) >= 2:
+                groups.append(group_articles)
+                used_indices.update(similar_indices)
     
-    # 유사하지 않은 기사들도 각각 하나의 그룹으로
-    remaining_indices = set(range(len(texts))) - used_indices
-    if remaining_indices:
-        for idx in remaining_indices:
-            similar_groups.append(group.iloc[[idx]])
-            print(f"  - 독립 기사 추가: {group.iloc[idx]['신문사']} - {group.iloc[idx]['제목'][:30]}...")
+    # 독립적인 기사들도 추가 (그룹에 속하지 않은 기사들)
+    independent_articles = [articles[i] for i in range(len(articles)) 
+                          if i not in used_indices]
     
-    print(f"  - 총 그룹 수: {len(similar_groups)}")
-    return similar_groups
-
-def select_articles_from_group(group_articles):
-    """그룹에서 기사 선택"""
-    selected_articles = []
-    used_groups = set()
+    # 독립적인 기사들도 발행일 순으로 정렬
+    independent_articles.sort(key=lambda x: x['발행일'], reverse=True)
     
-    # 각 신문사 그룹별로 가장 긴 기사 선택
-    for group_name in ['보수', '진보', '경제']:
-        group_mask = group_articles['신문사'].isin(NEWSPAPER_GROUPS[group_name])
-        group_articles_subset = group_articles[group_mask]
-        
-        if len(group_articles_subset) > 0:
-            # 가장 긴 기사 선택
-            longest_article = group_articles_subset.loc[group_articles_subset['본문'].str.len().idxmax()]
-            selected_articles.append(longest_article)
-            used_groups.add(group_name)
-            print(f"  - {group_name}그룹에서 기사 선택: {longest_article['신문사']}")
+    # 독립적인 기사들도 그룹으로 추가
+    if independent_articles:
+        groups.append(independent_articles)
     
-    # 선택된 기사가 3개 미만이면 나머지 기사 중에서 길이가 긴 순으로 추가
-    if len(selected_articles) < 3:
-        remaining_articles = group_articles[~group_articles['신문사'].isin([a['신문사'] for a in selected_articles])]
-        remaining_articles = remaining_articles.sort_values('본문', key=lambda x: x.str.len(), ascending=False)
-        
-        for _, article in remaining_articles.iterrows():
-            if len(selected_articles) >= 3:
-                break
-            selected_articles.append(article)
-            print(f"  - 추가 선택: {article['신문사']}")
+    # 각 그룹에서 대표 기사 선택
+    final_articles = []
+    for group in groups:
+        if len(group) == 1:  # 독립적인 기사인 경우
+            final_articles.append(group[0])
+        else:  # 유사한 기사 그룹인 경우
+            # 그룹 내에서 가장 최근 기사를 대표로 선택
+            final_articles.append(group[0])
     
-    return selected_articles
+    return final_articles
 
 def deduplicate_articles(df):
     """기사 중복제거"""
@@ -335,13 +311,13 @@ def deduplicate_articles(df):
             continue
             
         # 유사도 기반 그룹화
-        similar_groups = find_similar_articles(group)
+        similar_groups = group_similar_articles(group.to_dict(orient='records'))
         
         # 각 유사 그룹에서 기사 선택
         for group_idx, group_articles in enumerate(similar_groups, 1):
             print(f"\n  유사 그룹 {group_idx} 처리 중...")
-            selected_articles = select_articles_from_group(group_articles)
-            deduplicated_rows.extend([article.to_dict() for article in selected_articles])
+            selected_articles = group_articles
+            deduplicated_rows.extend([article for article in selected_articles])
             print(f"  - 선택된 기사 수: {len(selected_articles)}")
     
     # DataFrame으로 변환
