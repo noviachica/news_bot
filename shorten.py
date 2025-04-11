@@ -209,24 +209,41 @@ def deduplicate_articles(df):
 def main():
     try:
         # JSON 파일 읽기
-        input_file = 'news_data.json'
+        input_file = 'temp_news_data.json'
+        logger.info(f"입력 파일: {input_file}")
+        
+        if not os.path.exists(input_file):
+            raise FileNotFoundError(f"{input_file} 파일이 존재하지 않습니다.")
+        
         with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
+        logger.info(f"JSON 파일 로드 완료. 기사 수: {len(data)}")
+        
         # DataFrame으로 변환
         df = pd.DataFrame(data)
+        logger.info(f"DataFrame 생성 완료. 행 수: {len(df)}")
         
         # 중복제거
         deduplicated_df = deduplicate_articles(df)
         
         # 결과를 JSON 형식으로 변환
         result = deduplicated_df.to_dict('records')
+        logger.info(f"중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(result)}개")
         
-        # JSON 파일로 저장
-        with open(input_file, 'w', encoding='utf-8') as f:
+        # 결과를 JSON 파일로 저장
+        output_file = 'news_data.json'
+        with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"중복제거 결과를 {input_file}에 저장했습니다.")
+        logger.info(f"중복제거 결과를 {output_file}에 저장했습니다.")
+        
+        # 파일 크기 확인
+        if os.path.exists(output_file):
+            file_size = os.path.getsize(output_file)
+            logger.info(f"출력 파일 크기: {file_size} bytes")
+        else:
+            raise FileNotFoundError(f"{output_file} 파일이 생성되지 않았습니다.")
         
     except Exception as e:
         logger.error(f"프로그램 실행 중 오류 발생: {str(e)}")
