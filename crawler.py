@@ -218,7 +218,7 @@ def select_articles_by_length(group, threshold=0.2):
     # 우선순위 기준으로 정렬
     candidates = candidates.sort_values(['priority'])
     
-    return candidates.iloc[0] if len(candidates) > 0 else None
+    return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
 
 def deduplicate_articles(df):
     """기사 중복제거"""
