@@ -170,7 +170,7 @@ def main():
             }
             result.append(article)
         
-        # 임시 파일로 먼저 저장
+        # 임시 파일로 저장
         temp_file = 'temp_news_data.json'
         with open(temp_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
@@ -181,12 +181,16 @@ def main():
         if not os.path.exists(temp_file):
             raise FileNotFoundError(f"{temp_file} 파일이 생성되지 않았습니다.")
         
-        # 파일 크기 확인
         file_size = os.path.getsize(temp_file)
         if file_size == 0:
             raise ValueError(f"{temp_file} 파일이 비어있습니다.")
         
         logger.info(f"임시 파일 크기: {file_size} bytes")
+        
+        # 파일 내용 확인
+        with open(temp_file, 'r', encoding='utf-8') as f:
+            content = f.read(500)
+            logger.info(f"파일 내용 시작 부분:\n{content}")
         
         # shorten.py 실행
         logger.info("중복 제거를 시작합니다...")
@@ -204,6 +208,11 @@ def main():
         if os.path.exists('news_data.json'):
             final_size = os.path.getsize('news_data.json')
             logger.info(f"최종 파일 크기: {final_size} bytes")
+            
+            # 파일 내용 확인
+            with open('news_data.json', 'r', encoding='utf-8') as f:
+                content = f.read(500)
+                logger.info(f"최종 파일 내용 시작 부분:\n{content}")
         else:
             raise FileNotFoundError("최종 news_data.json 파일이 생성되지 않았습니다.")
         
