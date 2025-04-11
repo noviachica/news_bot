@@ -7,6 +7,9 @@ import requests
 from bs4 import BeautifulSoup
 import base64
 from datetime import datetime
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 print("1. 시작...")
 
@@ -130,6 +133,9 @@ def extract_article_text(url):
             'div.news_body',  # 추가 일반
             'div#newsViewArea',  # 추가 일반
             'div#content',  # 추가 일반
+            'div.article',  # 네이버 엔터테인먼트 추가
+            'div.article-content',  # 네이버 엔터테인먼트 추가
+            'div.article-body',  # 네이버 엔터테인먼트 추가
         ]
         
         for selector in selectors:
@@ -169,63 +175,93 @@ def extract_article_text(url):
         print(f"예상치 못한 에러: {e}")
         return f"[크롤링 에러] {e}"
 
-# 신문사 그룹 및 우선순위 정의
+# 신문사 그룹 정의
 NEWSPAPER_GROUPS = {
-    'group1': {
-        'newspapers': ['조선일보', '중앙일보', '동아일보'],
-        'priority': {'조선일보': 1, '중앙일보': 2, '동아일보': 3}
-    },
-    'group2': {
-        'newspapers': ['경향신문', '한겨레신문', '한국일보'],
-        'priority': {'경향신문': 1, '한겨레신문': 2, '한국일보': 3}
-    },
-    'group3': {
-        'newspapers': ['매일경제', '한국경제', '서울경제', '아주경제'],
-        'priority': {'매일경제': 1, '한국경제': 2, '서울경제': 3, '아주경제': 4}
-    }
+    '보수': ['조선일보', '중앙일보', '동아일보'],
+    '진보': ['경향신문', '한겨레신문', '한국일보'],
+    '경제': ['매일경제', '한국경제', '서울경제', '아주경제']
 }
 
 def get_newspaper_group(newspaper):
     """신문사가 속한 그룹을 반환"""
-    for group_name, group_info in NEWSPAPER_GROUPS.items():
-        if newspaper in group_info['newspapers']:
+    for group_name, newspapers in NEWSPAPER_GROUPS.items():
+        if newspaper in newspapers:
             return group_name
-    return None
+    return '기타'
 
-def get_newspaper_priority(newspaper):
-    """신문사의 우선순위를 반환"""
-    for group_info in NEWSPAPER_GROUPS.values():
-        if newspaper in group_info['priority']:
-            return group_info['priority'][newspaper]
-    return float('inf')  # 우선순위가 없는 경우 가장 낮은 우선순위
+def find_similar_articles(group, similarity_threshold=0.7):
+    """유사한 기사들을 찾아 그룹화"""
+    print(f"  - 유사도 분석 시작 (임계값: {similarity_threshold})")
+    
+    # 유사도 행렬 계산
+    texts = group['본문'].tolist()
+    vectorizer = TfidfVectorizer()
+    try:
+        tfidf_matrix = vectorizer.fit_transform(texts)
+        similarity_matrix = cosine_similarity(tfidf_matrix)
+    except:
+        print("  - 유사도 계산 실패")
+        return group
+    
+    # 유사한 기사 그룹화
+    similar_groups = []
+    used_indices = set()
+    
+    for i in range(len(texts)):
+        if i in used_indices:
+            continue
+            
+        # 현재 기사와 유사한 기사 찾기
+        similar_indices = np.where(similarity_matrix[i] > similarity_threshold)[0]
+        similar_indices = [idx for idx in similar_indices if idx not in used_indices]
+        
+        if similar_indices:
+            # 유사한 기사들을 하나의 그룹으로
+            group_articles = group.iloc[similar_indices]
+            similar_groups.append(group_articles)
+            
+            # 사용된 인덱스 표시
+            used_indices.update(similar_indices)
+            print(f"  - 유사 기사 그룹 {len(similar_groups)}: {len(similar_indices)}개 기사")
+    
+    # 유사하지 않은 기사들도 각각 하나의 그룹으로
+    remaining_indices = set(range(len(texts))) - used_indices
+    if remaining_indices:
+        for idx in remaining_indices:
+            similar_groups.append(group.iloc[[idx]])
+            print(f"  - 독립 기사 추가")
+    
+    return similar_groups
 
-def select_articles_by_length(group, threshold=0.2):
-    """기사 길이와 신문사 우선순위를 고려하여 기사 선택"""
-    # 기사 길이 계산 (본문의 길이)
-    group['length'] = group['본문'].str.len()
-    max_length = group['length'].max()
+def select_articles_from_group(group_articles):
+    """그룹에서 기사 선택"""
+    selected_articles = []
+    used_groups = set()
     
-    print(f"  - 최대 기사 길이: {max_length}")
-    print(f"  - 길이 임계값: {max_length * (1 - threshold)}")
+    # 각 신문사 그룹별로 가장 긴 기사 선택
+    for group_name in ['보수', '진보', '경제']:
+        group_mask = group_articles['신문사'].isin(NEWSPAPER_GROUPS[group_name])
+        group_articles_subset = group_articles[group_mask]
+        
+        if len(group_articles_subset) > 0:
+            # 가장 긴 기사 선택
+            longest_article = group_articles_subset.loc[group_articles_subset['본문'].str.len().idxmax()]
+            selected_articles.append(longest_article)
+            used_groups.add(group_name)
+            print(f"  - {group_name}그룹에서 기사 선택: {longest_article['신문사']}")
     
-    # 길이 기준 필터링 (최대 길이의 80% 이상인 기사들)
-    length_threshold = max_length * (1 - threshold)
-    candidates = group[group['length'] >= length_threshold].copy()
+    # 선택된 기사가 3개 미만이면 나머지 기사 중에서 길이가 긴 순으로 추가
+    if len(selected_articles) < 3:
+        remaining_articles = group_articles[~group_articles['신문사'].isin([a['신문사'] for a in selected_articles])]
+        remaining_articles = remaining_articles.sort_values('본문', key=lambda x: x.str.len(), ascending=False)
+        
+        for _, article in remaining_articles.iterrows():
+            if len(selected_articles) >= 3:
+                break
+            selected_articles.append(article)
+            print(f"  - 추가 선택: {article['신문사']}")
     
-    if len(candidates) == 0:
-        print("  - 길이 기준 충족 기사 없음, 모든 기사 후보로 포함")
-        candidates = group.copy()
-    
-    # 신문사 우선순위 추가
-    candidates['priority'] = candidates['신문사'].apply(get_newspaper_priority)
-    
-    # 우선순위 기준으로 정렬
-    candidates = candidates.sort_values(['priority'])
-    
-    print(f"  - 후보 기사 수: {len(candidates)}")
-    print(f"  - 선택된 기사: {candidates.iloc[0]['신문사']} (우선순위: {candidates.iloc[0]['priority']})")
-    
-    return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
+    return selected_articles
 
 def deduplicate_articles(df):
     """기사 중복제거"""
@@ -244,39 +280,15 @@ def deduplicate_articles(df):
             deduplicated_rows.extend(group.to_dict('records'))
             continue
             
-        # 신문사 그룹별로 기사 선택
-        selected_articles = []
-        used_groups = set()
+        # 유사도 기반 그룹화
+        similar_groups = find_similar_articles(group)
         
-        # 발행일 기준으로 정렬 (최신순)
-        group = group.sort_values('발행일', ascending=False)
-        
-        # 각 그룹별로 기사 선택
-        for group_name, group_info in NEWSPAPER_GROUPS.items():
-            if group_name in used_groups:
-                continue
-                
-            print(f"\n  그룹: {group_name}")
-            print(f"  - 신문사 목록: {group_info['newspapers']}")
-            
-            # 해당 그룹의 기사들만 필터링
-            group_articles = group[group['신문사'].isin(group_info['newspapers'])]
-            print(f"  - 그룹 내 기사 수: {len(group_articles)}")
-            
-            if len(group_articles) > 0:
-                # 기사 길이와 우선순위를 고려하여 선택
-                selected_article = select_articles_by_length(group_articles)
-                if selected_article is not None:
-                    selected_articles.append(selected_article)
-                    used_groups.add(group_name)
-                    print(f"  - 선택된 기사 추가: {selected_article['신문사']}")
-            
-            if len(selected_articles) >= 3:
-                print("  - 3개 기사 선택 완료")
-                break
-        
-        deduplicated_rows.extend(selected_articles)
-        print(f"  - 최종 선택된 기사 수: {len(selected_articles)}")
+        # 각 유사 그룹에서 기사 선택
+        for group_idx, group_articles in enumerate(similar_groups, 1):
+            print(f"\n  유사 그룹 {group_idx} 처리 중...")
+            selected_articles = select_articles_from_group(group_articles)
+            deduplicated_rows.extend([article.to_dict() for article in selected_articles])
+            print(f"  - 선택된 기사 수: {len(selected_articles)}")
     
     # DataFrame으로 변환
     deduplicated_df = pd.DataFrame(deduplicated_rows)
@@ -365,9 +377,19 @@ def update_github_repo(json_data, github_token, repo_name, file_path='news_batch
 GITHUB_REPO = "noviachica/news_bot"  # GitHub 저장소 이름
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # GitHub Actions에서 제공하는 토큰 사용
 
+# 환경 변수 확인
+print("\n환경 변수 확인:")
+print(f"  - GITHUB_TOKEN 존재 여부: {'있음' if GITHUB_TOKEN else '없음'}")
+if GITHUB_TOKEN:
+    print(f"  - GITHUB_TOKEN 길이: {len(GITHUB_TOKEN)}")
+    print(f"  - GITHUB_TOKEN 시작 부분: {GITHUB_TOKEN[:10]}...")
+else:
+    print("  - GITHUB_TOKEN이 설정되지 않았습니다.")
+    print("  - GitHub Actions의 secrets에 GITHUB_TOKEN이 설정되어 있는지 확인해주세요.")
+    print("  - secrets 설정 방법: https://docs.github.com/en/actions/security-guides/encrypted-secrets")
+
 if GITHUB_TOKEN:
     print("\nGitHub 업데이트 시작...")
-    print(f"  - GITHUB_TOKEN 길이: {len(GITHUB_TOKEN)}")
     print(f"  - JSON 데이터 크기: {len(json_content)}")
     raw_url = update_github_repo(json_content, GITHUB_TOKEN, GITHUB_REPO)
     if raw_url:
