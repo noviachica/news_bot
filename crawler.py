@@ -63,6 +63,33 @@ def get_google_sheets_data():
         df = pd.DataFrame(all_values[1:], columns=headers)
         print(f"10. DataFrame 생성 완료. 행 수: {len(df)}")
         
+        # 신문사 정보 추출 (URL에서)
+        def extract_newspaper(url):
+            if 'naver.com' in url:
+                # 네이버 뉴스 URL에서 신문사 코드 추출
+                newspaper_codes = {
+                    '023': '조선일보',
+                    '025': '중앙일보',
+                    '020': '동아일보',
+                    '032': '경향신문',
+                    '028': '한겨레신문',
+                    '469': '한국일보',
+                    '009': '매일경제',
+                    '015': '한국경제',
+                    '011': '서울경제',
+                    '277': '아주경제'
+                }
+                try:
+                    code = url.split('/article/')[1].split('/')[0]
+                    return newspaper_codes.get(code, '기타')
+                except:
+                    return '기타'
+            return '기타'
+        
+        # 신문사 열 추가
+        df['신문사'] = df['링크'].apply(extract_newspaper)
+        print("11. 신문사 정보 추출 완료")
+        
         return df
         
     except Exception as e:
