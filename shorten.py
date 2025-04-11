@@ -125,7 +125,8 @@ def select_articles_by_length(group_articles):
     if len(group_articles) == 0:
         return None
     
-    # 기사 길이 계산
+    # 기사 길이 계산 (copy()를 사용하여 경고 방지)
+    group_articles = group_articles.copy()
     group_articles['길이'] = group_articles['내용'].str.len()
     
     # 신문사 그룹별로 가장 긴 기사 선택
@@ -134,7 +135,7 @@ def select_articles_by_length(group_articles):
     
     for group_name in ['보수', '진보', '경제']:
         group_mask = group_articles['신문사'].isin(NEWSPAPER_GROUPS[group_name].keys())
-        group_articles_subset = group_articles[group_mask]
+        group_articles_subset = group_articles[group_mask].copy()  # copy() 사용
         
         if len(group_articles_subset) > 0:
             # 가장 긴 기사 선택
@@ -147,12 +148,12 @@ def select_articles_by_length(group_articles):
                 max_length = candidates.iloc[0]['길이']
                 second_length = candidates.iloc[1]['길이']
                 if (max_length - second_length) / max_length > 0.2:
-                    selected_article = candidates.iloc[0]
+                    selected_article = candidates.iloc[0].to_dict()
                 else:
                     # 길이가 비슷하면 신문사 우선순위로 선택
-                    selected_article = candidates.iloc[0]
+                    selected_article = candidates.iloc[0].to_dict()
             else:
-                selected_article = candidates.iloc[0]
+                selected_article = candidates.iloc[0].to_dict()
             
             selected_articles.append(selected_article)
             used_groups.add(group_name)
@@ -160,7 +161,7 @@ def select_articles_by_length(group_articles):
     
     # 선택된 기사가 3개 미만이면 나머지 기사 중에서 길이가 긴 순으로 추가
     if len(selected_articles) < 3:
-        remaining_articles = group_articles[~group_articles['신문사'].isin([a['신문사'] for a in selected_articles])]
+        remaining_articles = group_articles[~group_articles['신문사'].isin([a['신문사'] for a in selected_articles])].copy()  # copy() 사용
         remaining_articles = remaining_articles.sort_values(['길이', '신문사'], 
                                                           key=lambda x: x.map(get_newspaper_priority) if x.name == '신문사' else x,
                                                           ascending=[False, True])
@@ -168,7 +169,7 @@ def select_articles_by_length(group_articles):
         for _, article in remaining_articles.iterrows():
             if len(selected_articles) >= 3:
                 break
-            selected_articles.append(article)
+            selected_articles.append(article.to_dict())
             logger.info(f"추가 선택: {article['신문사']}")
     
     return selected_articles
@@ -198,13 +199,11 @@ def deduplicate_articles(df):
             logger.info(f"\n유사 그룹 {group_idx} 처리 중...")
             selected_articles = select_articles_by_length(group_articles)
             if selected_articles:
-                deduplicated_rows.extend([article.to_dict() for article in selected_articles])
+                deduplicated_rows.extend(selected_articles)
                 logger.info(f"선택된 기사 수: {len(selected_articles)}")
     
-    # DataFrame으로 변환
-    deduplicated_df = pd.DataFrame(deduplicated_rows)
-    logger.info(f"\n중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(deduplicated_df)}개")
-    return deduplicated_df
+    logger.info(f"\n중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(deduplicated_rows)}개")
+    return deduplicated_rows
 
 def main():
     try:
@@ -225,10 +224,10 @@ def main():
         logger.info(f"DataFrame 생성 완료. 행 수: {len(df)}")
         
         # 중복제거
-        deduplicated_df = deduplicate_articles(df)
+        deduplicated_rows = deduplicate_articles(df)
         
         # 결과를 JSON 형식으로 변환
-        result = deduplicated_df.to_dict('records')
+        result = deduplicated_rows
         logger.info(f"중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(result)}개")
         
         # 결과를 JSON 파일로 저장
