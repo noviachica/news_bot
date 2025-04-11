@@ -82,34 +82,24 @@ def calculate_similarity(text1, text2):
         logger.error(f"유사도 계산 중 오류: {e}")
         return 0.0
 
-def find_similar_articles(group, similarity_threshold=0.7):
-    """유사한 기사들을 찾아 그룹화"""
-    logger.info(f"유사도 분석 시작 (임계값: {similarity_threshold})")
-    logger.info(f"분석 대상 기사 수: {len(group)}")
-    
+def find_similar_articles(group, similarity_threshold=0.5):
+    """
+    주어진 그룹 내에서 유사한 기사들을 찾아 그룹화합니다.
+    Args:
+        group: DataFrame, 같은 키워드의 기사들
+        similarity_threshold: float, 유사도 임계값 (기본값: 0.5)
+    Returns:
+        list: 유사한 기사들의 그룹 리스트
+    """
     # 텍스트 전처리
     texts = group['내용'].apply(preprocess_text).tolist()
     
-    # 유사도 행렬 계산
-    vectorizer = TfidfVectorizer(
-        max_features=10000,
-        min_df=2,
-        max_df=0.95
-    )
+    # TF-IDF 벡터화
+    vectorizer = TfidfVectorizer(max_features=10000)
+    tfidf_matrix = vectorizer.fit_transform(texts)
     
-    try:
-        tfidf_matrix = vectorizer.fit_transform(texts)
-        similarity_matrix = cosine_similarity(tfidf_matrix)
-        
-        # 유사도 분포 분석
-        similarities = similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)]
-        logger.info(f"평균 유사도: {np.mean(similarities):.3f}")
-        logger.info(f"최대 유사도: {np.max(similarities):.3f}")
-        logger.info(f"최소 유사도: {np.min(similarities):.3f}")
-        
-    except Exception as e:
-        logger.error(f"유사도 계산 실패: {e}")
-        return group
+    # 코사인 유사도 계산
+    similarity_matrix = cosine_similarity(tfidf_matrix)
     
     # 유사한 기사 그룹화
     similar_groups = []
@@ -119,29 +109,15 @@ def find_similar_articles(group, similarity_threshold=0.7):
         if i in used_indices:
             continue
             
-        # 현재 기사와 유사한 기사 찾기
+        # 유사도가 threshold(0.5) 이상인 기사 찾기
         similar_indices = np.where(similarity_matrix[i] > similarity_threshold)[0]
         similar_indices = [idx for idx in similar_indices if idx not in used_indices]
         
         if similar_indices:
-            # 유사한 기사들을 하나의 그룹으로
             group_articles = group.iloc[similar_indices]
             similar_groups.append(group_articles)
-            
-            # 사용된 인덱스 표시
             used_indices.update(similar_indices)
-            logger.info(f"유사 기사 그룹 {len(similar_groups)}: {len(similar_indices)}개 기사")
-            logger.info(f"대표 기사: {group.iloc[i]['신문사']} - {group.iloc[i]['제목'][:30]}...")
-            logger.info(f"유사도 범위: {np.min(similarity_matrix[i, similar_indices]):.3f} ~ {np.max(similarity_matrix[i, similar_indices]):.3f}")
     
-    # 유사하지 않은 기사들도 각각 하나의 그룹으로
-    remaining_indices = set(range(len(texts))) - used_indices
-    if remaining_indices:
-        for idx in remaining_indices:
-            similar_groups.append(group.iloc[[idx]])
-            logger.info(f"독립 기사 추가: {group.iloc[idx]['신문사']} - {group.iloc[idx]['제목'][:30]}...")
-    
-    logger.info(f"총 그룹 수: {len(similar_groups)}")
     return similar_groups
 
 def select_articles_by_length(group_articles):
