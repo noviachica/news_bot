@@ -11,35 +11,91 @@ from datetime import datetime
 print("1. 시작...")
 
 # ✅ STEP 1: Google Sheets에서 데이터 불러오기
-try:
+def get_google_sheets_data():
     print("2. Google 서비스 계정 키 파일 읽기 시도...")
-    with open('google_credentials.json', 'r') as f:
-        creds_json = json.load(f)
-    print("3. Google 서비스 계정 키 파일 읽기 성공")
-
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    print("4. Google Sheets 인증 시도...")
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-    client = gspread.authorize(creds)
-    print("5. Google Sheets 인증 성공")
-
-    print("6. 스프레드시트 접근 시도...")
-    sheet_url = 'https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0'
-    sheet = client.open_by_url(sheet_url).worksheet("Result")
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    print("7. 스프레드시트 데이터 로드 성공")
-    print(f"8. 총 {len(df)}개의 기사가 있습니다.")
-
-except Exception as e:
-    print(f"❌ Google Sheets 접근 중 오류 발생: {e}")
-    exit(1)
+    
+    try:
+        # 환경 변수에서 JSON 문자열을 읽어서 파싱
+        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
+        if not credentials_json:
+            print("환경 변수 내용:")
+            print(os.environ)
+            raise ValueError("GOOGLE_CREDENTIALS 환경 변수가 설정되지 않았습니다.")
+            
+        print("3. JSON 데이터 길이:", len(credentials_json))
+        print("4. JSON 데이터 시작 부분:", credentials_json[:100])  # 처음 100자만 출력
+        
+        # JSON 문자열을 파일로 저장하여 디버깅
+        with open('temp_credentials.json', 'w') as f:
+            f.write(credentials_json)
+        print("5. 임시 credentials 파일 저장 완료")
+        
+        credentials_dict = json.loads(credentials_json)
+        
+        # 스코프 설정
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+        gc = gspread.authorize(credentials)
+        print("6. Google Sheets 인증 성공")
+        
+        # 스프레드시트 열기
+        spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0')
+        
+        # Result 워크시트 선택
+        worksheet = spreadsheet.worksheet("Result")
+        print(f"7. 선택된 워크시트: {worksheet.title}")
+        
+        # 전체 데이터 가져오기
+        all_values = worksheet.get_all_values()
+        print(f"8. 전체 데이터 행 수: {len(all_values)}")
+        
+        # 헤더 확인
+        headers = all_values[0]
+        print("9. 헤더:", headers)
+        
+        # 데이터프레임 생성
+        df = pd.DataFrame(all_values[1:], columns=headers)
+        print(f"10. DataFrame 생성 완료. 행 수: {len(df)}")
+        
+        # 신문사 정보 추출 (URL에서)
+        def extract_newspaper(url):
+            if 'naver.com' in url:
+                # 네이버 뉴스 URL에서 신문사 코드 추출
+                newspaper_codes = {
+                    '023': '조선일보',
+                    '025': '중앙일보',
+                    '020': '동아일보',
+                    '032': '경향신문',
+                    '028': '한겨레신문',
+                    '469': '한국일보',
+                    '009': '매일경제',
+                    '015': '한국경제',
+                    '011': '서울경제',
+                    '277': '아주경제'
+                }
+                try:
+                    code = url.split('/article/')[1].split('/')[0]
+                    return newspaper_codes.get(code, '기타')
+                except:
+                    return '기타'
+            return '기타'
+        
+        # 신문사 열 추가
+        df['신문사'] = df['링크'].apply(extract_newspaper)
+        print("11. 신문사 정보 추출 완료")
+        
+        return df
+        
+    except Exception as e:
+        print(f"❌ Google Sheets 접근 중 오류 발생: {str(e)}")
+        print(f"오류 유형: {type(e).__name__}")
+        raise
 
 # ✅ STEP 2: 기사 본문 크롤러 정의
 def extract_article_text(url):
@@ -74,6 +130,9 @@ def extract_article_text(url):
             'div.news_body',  # 추가 일반
             'div#newsViewArea',  # 추가 일반
             'div#content',  # 추가 일반
+            'div.article',  # 네이버 엔터테인먼트 추가
+            'div.article-content',  # 네이버 엔터테인먼트 추가
+            'div.article-body',  # 네이버 엔터테인먼트 추가
         ]
         
         for selector in selectors:
@@ -113,20 +172,139 @@ def extract_article_text(url):
         print(f"예상치 못한 에러: {e}")
         return f"[크롤링 에러] {e}"
 
+# 신문사 그룹 및 우선순위 정의
+NEWSPAPER_GROUPS = {
+    'group1': {
+        'newspapers': ['조선일보', '중앙일보', '동아일보'],
+        'priority': {'조선일보': 1, '중앙일보': 2, '동아일보': 3}
+    },
+    'group2': {
+        'newspapers': ['경향신문', '한겨레신문', '한국일보'],
+        'priority': {'경향신문': 1, '한겨레신문': 2, '한국일보': 3}
+    },
+    'group3': {
+        'newspapers': ['매일경제', '한국경제', '서울경제', '아주경제'],
+        'priority': {'매일경제': 1, '한국경제': 2, '서울경제': 3, '아주경제': 4}
+    }
+}
+
+def get_newspaper_group(newspaper):
+    """신문사가 속한 그룹을 반환"""
+    for group_name, group_info in NEWSPAPER_GROUPS.items():
+        if newspaper in group_info['newspapers']:
+            return group_name
+    return None
+
+def get_newspaper_priority(newspaper):
+    """신문사의 우선순위를 반환"""
+    for group_info in NEWSPAPER_GROUPS.values():
+        if newspaper in group_info['priority']:
+            return group_info['priority'][newspaper]
+    return float('inf')  # 우선순위가 없는 경우 가장 낮은 우선순위
+
+def select_articles_by_length(group, threshold=0.2):
+    """기사 길이와 신문사 우선순위를 고려하여 기사 선택"""
+    # 기사 길이 계산 (본문의 길이)
+    group['length'] = group['본문'].str.len()
+    max_length = group['length'].max()
+    
+    print(f"  - 최대 기사 길이: {max_length}")
+    print(f"  - 길이 임계값: {max_length * (1 - threshold)}")
+    
+    # 길이 기준 필터링 (최대 길이의 80% 이상인 기사들)
+    length_threshold = max_length * (1 - threshold)
+    candidates = group[group['length'] >= length_threshold].copy()
+    
+    if len(candidates) == 0:
+        print("  - 길이 기준 충족 기사 없음, 모든 기사 후보로 포함")
+        candidates = group.copy()
+    
+    # 신문사 우선순위 추가
+    candidates['priority'] = candidates['신문사'].apply(get_newspaper_priority)
+    
+    # 우선순위 기준으로 정렬
+    candidates = candidates.sort_values(['priority'])
+    
+    print(f"  - 후보 기사 수: {len(candidates)}")
+    print(f"  - 선택된 기사: {candidates.iloc[0]['신문사']} (우선순위: {candidates.iloc[0]['priority']})")
+    
+    return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
+
+def deduplicate_articles(df):
+    """기사 중복제거"""
+    print("12. 기사 중복제거 시작...")
+    
+    # 키워드별로 그룹화
+    grouped = df.groupby('키워드')
+    deduplicated_rows = []
+    
+    for keyword, group in grouped:
+        print(f"\n키워드: {keyword}")
+        print(f"  - 기사 수: {len(group)}")
+        
+        if len(group) < 3:
+            print("  - 3개 미만이므로 모두 포함")
+            deduplicated_rows.extend(group.to_dict('records'))
+            continue
+            
+        # 신문사 그룹별로 기사 선택
+        selected_articles = []
+        used_groups = set()
+        
+        # 발행일 기준으로 정렬 (최신순)
+        group = group.sort_values('발행일', ascending=False)
+        
+        # 각 그룹별로 기사 선택
+        for group_name, group_info in NEWSPAPER_GROUPS.items():
+            if group_name in used_groups:
+                continue
+                
+            print(f"\n  그룹: {group_name}")
+            print(f"  - 신문사 목록: {group_info['newspapers']}")
+            
+            # 해당 그룹의 기사들만 필터링
+            group_articles = group[group['신문사'].isin(group_info['newspapers'])]
+            print(f"  - 그룹 내 기사 수: {len(group_articles)}")
+            
+            if len(group_articles) > 0:
+                # 기사 길이와 우선순위를 고려하여 선택
+                selected_article = select_articles_by_length(group_articles)
+                if selected_article is not None:
+                    selected_articles.append(selected_article)
+                    used_groups.add(group_name)
+                    print(f"  - 선택된 기사 추가: {selected_article['신문사']}")
+            
+            if len(selected_articles) >= 3:
+                print("  - 3개 기사 선택 완료")
+                break
+        
+        deduplicated_rows.extend(selected_articles)
+        print(f"  - 최종 선택된 기사 수: {len(selected_articles)}")
+    
+    # DataFrame으로 변환
+    deduplicated_df = pd.DataFrame(deduplicated_rows)
+    print(f"\n13. 중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(deduplicated_df)}개")
+    return deduplicated_df
+
 # ✅ STEP 3: 기사 본문 열 추가
-print("\n9. 기사 본문 크롤링 시작...")
+print("\n10. 기사 본문 크롤링 시작...")
 try:
+    df = get_google_sheets_data()  # DataFrame 가져오기
     df['본문'] = df['링크'].apply(extract_article_text)
-    print("10. 기사 본문 크롤링 완료")
+    print("11. 기사 본문 크롤링 완료")
+    
+    # 중복제거
+    df = deduplicate_articles(df)
+    
 except Exception as e:
     print(f"❌ 크롤링 중 오류 발생: {e}")
     exit(1)
 
 # ✅ STEP 4: JSON 변환
-print("11. JSON 변환 시작...")
+print("14. JSON 변환 시작...")
 try:
     json_content = df.to_json(orient='records', force_ascii=False, indent=2)
-    print("12. JSON 변환 완료")
+    print("15. JSON 변환 완료")
 except Exception as e:
     print(f"❌ JSON 변환 중 오류 발생: {e}")
     exit(1)
@@ -134,28 +312,32 @@ except Exception as e:
 # ✅ STEP 5: GitHub Repository 업데이트 함수
 def update_github_repo(json_data, github_token, repo_name, file_path='news_batch.json'):
     try:
-        print("13. GitHub Repository 업데이트 시도...")
+        print("16. GitHub Repository 업데이트 시도...")
+        print(f"  - 저장소: {repo_name}")
+        print(f"  - 파일 경로: {file_path}")
+        print(f"  - JSON 데이터 크기: {len(json_data)} bytes")
+        
         # GitHub API 엔드포인트
         url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}"
-        print(f"API URL: {url}")
+        print(f"  - API URL: {url}")
         
         # 기존 파일 정보 가져오기
         headers = {
             "Authorization": f"Bearer {github_token}",
             "Accept": "application/vnd.github.v3+json"
         }
-        print("헤더 설정 완료")
         
         # 기존 파일의 SHA 가져오기
-        print("기존 파일 정보 요청 중...")
+        print("  - 기존 파일 정보 요청 중...")
         response = requests.get(url, headers=headers)
-        print(f"기존 파일 응답 상태: {response.status_code}")
+        print(f"  - 기존 파일 응답 상태: {response.status_code}")
+        
         sha = None
         if response.status_code == 200:
             sha = response.json()['sha']
-            print("기존 파일 SHA 획득")
+            print("  - 기존 파일 SHA 획득")
         else:
-            print("새 파일 생성")
+            print("  - 새 파일 생성")
         
         # 파일 업데이트
         payload = {
@@ -163,18 +345,20 @@ def update_github_repo(json_data, github_token, repo_name, file_path='news_batch
             "content": base64.b64encode(json_data.encode()).decode(),
             "sha": sha
         }
-        print("업데이트 요청 전송 중...")
+        print("  - 업데이트 요청 전송 중...")
         
         response = requests.put(url, headers=headers, data=json.dumps(payload))
-        print(f"업데이트 응답 상태: {response.status_code}")
-        print(f"응답 내용: {response.text}")
+        print(f"  - 업데이트 응답 상태: {response.status_code}")
+        print(f"  - 응답 내용: {response.text}")
         
         if response.status_code in [200, 201]:
             raw_url = response.json()['content']['download_url']
-            print(f"✅ GitHub Repository 업데이트 성공!\n🌐 Raw URL: {raw_url}")
+            print(f"✅ GitHub Repository 업데이트 성공!")
+            print(f"🌐 Raw URL: {raw_url}")
             return raw_url
         else:
-            print(f"❌ GitHub Repository 업데이트 실패: {response.status_code}\n{response.text}")
+            print(f"❌ GitHub Repository 업데이트 실패: {response.status_code}")
+            print(f"  - 에러 메시지: {response.text}")
             return None
     except Exception as e:
         print(f"❌ GitHub Repository 업데이트 중 오류 발생: {e}")
@@ -184,7 +368,24 @@ def update_github_repo(json_data, github_token, repo_name, file_path='news_batch
 GITHUB_REPO = "noviachica/news_bot"  # GitHub 저장소 이름
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # GitHub Actions에서 제공하는 토큰 사용
 
+# 환경 변수 확인
+print("\n환경 변수 확인:")
+print(f"  - GITHUB_TOKEN 존재 여부: {'있음' if GITHUB_TOKEN else '없음'}")
 if GITHUB_TOKEN:
-    update_github_repo(json_content, GITHUB_TOKEN, GITHUB_REPO)
+    print(f"  - GITHUB_TOKEN 길이: {len(GITHUB_TOKEN)}")
+    print(f"  - GITHUB_TOKEN 시작 부분: {GITHUB_TOKEN[:10]}...")
+else:
+    print("  - GITHUB_TOKEN이 설정되지 않았습니다.")
+    print("  - GitHub Actions의 secrets에 GITHUB_TOKEN이 설정되어 있는지 확인해주세요.")
+    print("  - secrets 설정 방법: https://docs.github.com/en/actions/security-guides/encrypted-secrets")
+
+if GITHUB_TOKEN:
+    print("\nGitHub 업데이트 시작...")
+    print(f"  - JSON 데이터 크기: {len(json_content)}")
+    raw_url = update_github_repo(json_content, GITHUB_TOKEN, GITHUB_REPO)
+    if raw_url:
+        print(f"✅ GitHub 업데이트 완료: {raw_url}")
+    else:
+        print("❌ GitHub 업데이트 실패")
 else:
     print("⚠️ GITHUB_TOKEN이 설정되지 않았습니다. GitHub 업데이트를 건너뜁니다.") 
