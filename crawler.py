@@ -10,6 +10,8 @@ from datetime import datetime
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import re
+from konlpy.tag import Okt  # 한국어 텍스트 처리용
 
 print("1. 시작...")
 
@@ -189,18 +191,67 @@ def get_newspaper_group(newspaper):
             return group_name
     return '기타'
 
+def preprocess_text(text):
+    """텍스트 전처리"""
+    if not isinstance(text, str):
+        return ""
+        
+    # 한글, 숫자, 공백만 남기기
+    text = re.sub(r'[^가-힣0-9\s]', ' ', text)
+    # 연속된 공백 제거
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def calculate_similarity(text1, text2):
+    """두 텍스트 간의 코사인 유사도 계산"""
+    if not text1 or not text2:
+        return 0.0
+        
+    # 텍스트 전처리
+    text1 = preprocess_text(text1)
+    text2 = preprocess_text(text2)
+    
+    vectorizer = TfidfVectorizer(
+        max_features=10000,  # 최대 특성 수 제한
+        min_df=2,  # 최소 문서 빈도
+        max_df=0.95  # 최대 문서 빈도
+    )
+    
+    try:
+        tfidf_matrix = vectorizer.fit_transform([text1, text2])
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+        return similarity
+    except Exception as e:
+        print(f"유사도 계산 중 오류: {e}")
+        return 0.0
+
 def find_similar_articles(group, similarity_threshold=0.7):
     """유사한 기사들을 찾아 그룹화"""
     print(f"  - 유사도 분석 시작 (임계값: {similarity_threshold})")
+    print(f"  - 분석 대상 기사 수: {len(group)}")
+    
+    # 텍스트 전처리
+    texts = group['본문'].apply(preprocess_text).tolist()
     
     # 유사도 행렬 계산
-    texts = group['본문'].tolist()
-    vectorizer = TfidfVectorizer()
+    vectorizer = TfidfVectorizer(
+        max_features=10000,
+        min_df=2,
+        max_df=0.95
+    )
+    
     try:
         tfidf_matrix = vectorizer.fit_transform(texts)
         similarity_matrix = cosine_similarity(tfidf_matrix)
-    except:
-        print("  - 유사도 계산 실패")
+        
+        # 유사도 분포 분석
+        similarities = similarity_matrix[np.triu_indices_from(similarity_matrix, k=1)]
+        print(f"  - 평균 유사도: {np.mean(similarities):.3f}")
+        print(f"  - 최대 유사도: {np.max(similarities):.3f}")
+        print(f"  - 최소 유사도: {np.min(similarities):.3f}")
+        
+    except Exception as e:
+        print(f"  - 유사도 계산 실패: {e}")
         return group
     
     # 유사한 기사 그룹화
@@ -223,14 +274,17 @@ def find_similar_articles(group, similarity_threshold=0.7):
             # 사용된 인덱스 표시
             used_indices.update(similar_indices)
             print(f"  - 유사 기사 그룹 {len(similar_groups)}: {len(similar_indices)}개 기사")
+            print(f"    - 대표 기사: {group.iloc[i]['신문사']} - {group.iloc[i]['제목'][:30]}...")
+            print(f"    - 유사도 범위: {np.min(similarity_matrix[i, similar_indices]):.3f} ~ {np.max(similarity_matrix[i, similar_indices]):.3f}")
     
     # 유사하지 않은 기사들도 각각 하나의 그룹으로
     remaining_indices = set(range(len(texts))) - used_indices
     if remaining_indices:
         for idx in remaining_indices:
             similar_groups.append(group.iloc[[idx]])
-            print(f"  - 독립 기사 추가")
+            print(f"  - 독립 기사 추가: {group.iloc[idx]['신문사']} - {group.iloc[idx]['제목'][:30]}...")
     
+    print(f"  - 총 그룹 수: {len(similar_groups)}")
     return similar_groups
 
 def select_articles_from_group(group_articles):
