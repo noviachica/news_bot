@@ -205,11 +205,15 @@ def select_articles_by_length(group, threshold=0.2):
     group['length'] = group['본문'].str.len()
     max_length = group['length'].max()
     
+    print(f"  - 최대 기사 길이: {max_length}")
+    print(f"  - 길이 임계값: {max_length * (1 - threshold)}")
+    
     # 길이 기준 필터링 (최대 길이의 80% 이상인 기사들)
     length_threshold = max_length * (1 - threshold)
     candidates = group[group['length'] >= length_threshold].copy()
     
     if len(candidates) == 0:
+        print("  - 길이 기준 충족 기사 없음, 모든 기사 후보로 포함")
         candidates = group.copy()
     
     # 신문사 우선순위 추가
@@ -217,6 +221,9 @@ def select_articles_by_length(group, threshold=0.2):
     
     # 우선순위 기준으로 정렬
     candidates = candidates.sort_values(['priority'])
+    
+    print(f"  - 후보 기사 수: {len(candidates)}")
+    print(f"  - 선택된 기사: {candidates.iloc[0]['신문사']} (우선순위: {candidates.iloc[0]['priority']})")
     
     return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
 
@@ -229,8 +236,11 @@ def deduplicate_articles(df):
     deduplicated_rows = []
     
     for keyword, group in grouped:
+        print(f"\n키워드: {keyword}")
+        print(f"  - 기사 수: {len(group)}")
+        
         if len(group) < 3:
-            # 3개 미만이면 모두 포함
+            print("  - 3개 미만이므로 모두 포함")
             deduplicated_rows.extend(group.to_dict('records'))
             continue
             
@@ -246,8 +256,12 @@ def deduplicate_articles(df):
             if group_name in used_groups:
                 continue
                 
+            print(f"\n  그룹: {group_name}")
+            print(f"  - 신문사 목록: {group_info['newspapers']}")
+            
             # 해당 그룹의 기사들만 필터링
             group_articles = group[group['신문사'].isin(group_info['newspapers'])]
+            print(f"  - 그룹 내 기사 수: {len(group_articles)}")
             
             if len(group_articles) > 0:
                 # 기사 길이와 우선순위를 고려하여 선택
@@ -255,15 +269,18 @@ def deduplicate_articles(df):
                 if selected_article is not None:
                     selected_articles.append(selected_article)
                     used_groups.add(group_name)
+                    print(f"  - 선택된 기사 추가: {selected_article['신문사']}")
             
             if len(selected_articles) >= 3:
+                print("  - 3개 기사 선택 완료")
                 break
         
         deduplicated_rows.extend(selected_articles)
+        print(f"  - 최종 선택된 기사 수: {len(selected_articles)}")
     
     # DataFrame으로 변환
     deduplicated_df = pd.DataFrame(deduplicated_rows)
-    print(f"13. 중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(deduplicated_df)}개")
+    print(f"\n13. 중복제거 완료. 원본: {len(df)}개, 중복제거 후: {len(deduplicated_df)}개")
     return deduplicated_df
 
 # ✅ STEP 3: 기사 본문 열 추가
