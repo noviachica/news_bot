@@ -30,11 +30,6 @@ def get_google_sheets_data():
         print("3. JSON 데이터 길이:", len(credentials_json))
         print("4. JSON 데이터 시작 부분:", credentials_json[:100])  # 처음 100자만 출력
         
-        # JSON 문자열을 파일로 저장하여 디버깅
-        with open('temp_credentials.json', 'w') as f:
-            f.write(credentials_json)
-        print("5. 임시 credentials 파일 저장 완료")
-        
         credentials_dict = json.loads(credentials_json)
         
         # 스코프 설정
@@ -57,16 +52,13 @@ def get_google_sheets_data():
         print(f"7. 선택된 워크시트: {worksheet.title}")
         
         # 전체 데이터 가져오기
-        all_values = worksheet.get_all_values()
+        all_values = worksheet.get_all_records()  # 변경된 부분
         print(f"8. 전체 데이터 행 수: {len(all_values)}")
         
-        # 헤더 확인
-        headers = all_values[0]
-        print("9. 헤더:", headers)
-        
         # 데이터프레임 생성
-        df = pd.DataFrame(all_values[1:], columns=headers)
-        print(f"10. DataFrame 생성 완료. 행 수: {len(df)}")
+        df = pd.DataFrame(all_values)
+        print(f"9. DataFrame 생성 완료. 행 수: {len(df)}")
+        print("10. 컬럼:", df.columns.tolist())
         
         # 신문사 정보 추출 (URL에서)
         def extract_newspaper(url):
