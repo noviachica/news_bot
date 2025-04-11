@@ -41,5 +41,16 @@ jobs:
         echo "GOOGLE_CREDENTIALS 시작 부분: ${GOOGLE_CREDENTIALS:0:100}"
         echo "GITHUB_TOKEN 길이: ${#GITHUB_TOKEN}"
         echo "GITHUB_TOKEN 시작 부분: ${GITHUB_TOKEN:0:10}..."
+        
+        echo "crawler.py 실행 시작..."
         python crawler.py
-        python shorten.py 
+        echo "crawler.py 실행 완료"
+        
+        echo "shorten.py 실행 시작..."
+        python shorten.py
+        echo "shorten.py 실행 완료"
+        
+        echo "현재 디렉토리 내용 확인:"
+        ls -la
+        echo "news_data.json 파일 내용 확인:"
+        cat news_data.json | head -n 5 
