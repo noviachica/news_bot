@@ -46,20 +46,28 @@ def get_google_sheets_data():
         
         # 스프레드시트 열기
         spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0')
-        worksheet = spreadsheet.get_worksheet(0)
-        print("7. 스프레드시트 접근 성공")
+        
+        # 모든 워크시트 목록 출력
+        worksheets = spreadsheet.worksheets()
+        print("7. 워크시트 목록:")
+        for i, ws in enumerate(worksheets):
+            print(f"  {i+1}. {ws.title} (행: {ws.row_count}, 열: {ws.col_count})")
+        
+        # 첫 번째 워크시트 선택
+        worksheet = worksheets[0]
+        print(f"8. 선택된 워크시트: {worksheet.title}")
         
         # 전체 데이터 가져오기
         all_values = worksheet.get_all_values()
-        print(f"8. 전체 데이터 행 수: {len(all_values)}")
+        print(f"9. 전체 데이터 행 수: {len(all_values)}")
         
         # 헤더 확인
         headers = all_values[0]
-        print("9. 헤더:", headers)
+        print("10. 헤더:", headers)
         
         # 데이터프레임 생성
         df = pd.DataFrame(all_values[1:], columns=headers)
-        print(f"10. DataFrame 생성 완료. 행 수: {len(df)}")
+        print(f"11. DataFrame 생성 완료. 행 수: {len(df)}")
         
         return df
         
