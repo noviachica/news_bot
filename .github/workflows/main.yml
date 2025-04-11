@@ -25,8 +25,11 @@ jobs:
     - name: Run crawler
       env:
         GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIAL }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "환경 변수 확인:"
         echo "GOOGLE_CREDENTIALS 길이: ${#GOOGLE_CREDENTIALS}"
         echo "GOOGLE_CREDENTIALS 시작 부분: ${GOOGLE_CREDENTIALS:0:100}"
+        echo "GITHUB_TOKEN 길이: ${#GITHUB_TOKEN}"
+        echo "GITHUB_TOKEN 시작 부분: ${GITHUB_TOKEN:0:10}..."
         python crawler.py 
