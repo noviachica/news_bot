@@ -31,16 +31,21 @@ def get_google_sheets_data():
         print("5. 임시 credentials 파일 저장 완료")
         
         credentials_dict = json.loads(credentials_json)
-        credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-            credentials_dict,
-            ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        )
         
+        # 스코프 설정
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
         gc = gspread.authorize(credentials)
         print("6. Google Sheets 인증 성공")
         
         # 스프레드시트 열기
-        spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1QJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQJwQ/edit#gid=0')
+        spreadsheet = gc.open_by_url('https://docs.google.com/spreadsheets/d/1HLTb59lcJQIZmaPMrJ0--hEsheyERIkCg5aBxSEFDtc/edit#gid=0')
         worksheet = spreadsheet.get_worksheet(0)
         print("7. 스프레드시트 접근 성공")
         
