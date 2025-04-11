@@ -310,27 +310,31 @@ except Exception as e:
 def update_github_repo(json_data, github_token, repo_name, file_path='news_batch.json'):
     try:
         print("16. GitHub Repository 업데이트 시도...")
+        print(f"  - 저장소: {repo_name}")
+        print(f"  - 파일 경로: {file_path}")
+        print(f"  - JSON 데이터 크기: {len(json_data)} bytes")
+        
         # GitHub API 엔드포인트
         url = f"https://api.github.com/repos/{repo_name}/contents/{file_path}"
-        print(f"API URL: {url}")
+        print(f"  - API URL: {url}")
         
         # 기존 파일 정보 가져오기
         headers = {
             "Authorization": f"Bearer {github_token}",
             "Accept": "application/vnd.github.v3+json"
         }
-        print("헤더 설정 완료")
         
         # 기존 파일의 SHA 가져오기
-        print("기존 파일 정보 요청 중...")
+        print("  - 기존 파일 정보 요청 중...")
         response = requests.get(url, headers=headers)
-        print(f"기존 파일 응답 상태: {response.status_code}")
+        print(f"  - 기존 파일 응답 상태: {response.status_code}")
+        
         sha = None
         if response.status_code == 200:
             sha = response.json()['sha']
-            print("기존 파일 SHA 획득")
+            print("  - 기존 파일 SHA 획득")
         else:
-            print("새 파일 생성")
+            print("  - 새 파일 생성")
         
         # 파일 업데이트
         payload = {
@@ -338,18 +342,20 @@ def update_github_repo(json_data, github_token, repo_name, file_path='news_batch
             "content": base64.b64encode(json_data.encode()).decode(),
             "sha": sha
         }
-        print("업데이트 요청 전송 중...")
+        print("  - 업데이트 요청 전송 중...")
         
         response = requests.put(url, headers=headers, data=json.dumps(payload))
-        print(f"업데이트 응답 상태: {response.status_code}")
-        print(f"응답 내용: {response.text}")
+        print(f"  - 업데이트 응답 상태: {response.status_code}")
+        print(f"  - 응답 내용: {response.text}")
         
         if response.status_code in [200, 201]:
             raw_url = response.json()['content']['download_url']
-            print(f"✅ GitHub Repository 업데이트 성공!\n🌐 Raw URL: {raw_url}")
+            print(f"✅ GitHub Repository 업데이트 성공!")
+            print(f"🌐 Raw URL: {raw_url}")
             return raw_url
         else:
-            print(f"❌ GitHub Repository 업데이트 실패: {response.status_code}\n{response.text}")
+            print(f"❌ GitHub Repository 업데이트 실패: {response.status_code}")
+            print(f"  - 에러 메시지: {response.text}")
             return None
     except Exception as e:
         print(f"❌ GitHub Repository 업데이트 중 오류 발생: {e}")
@@ -360,6 +366,13 @@ GITHUB_REPO = "noviachica/news_bot"  # GitHub 저장소 이름
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # GitHub Actions에서 제공하는 토큰 사용
 
 if GITHUB_TOKEN:
-    update_github_repo(json_content, GITHUB_TOKEN, GITHUB_REPO)
+    print("\nGitHub 업데이트 시작...")
+    print(f"  - GITHUB_TOKEN 길이: {len(GITHUB_TOKEN)}")
+    print(f"  - JSON 데이터 크기: {len(json_content)}")
+    raw_url = update_github_repo(json_content, GITHUB_TOKEN, GITHUB_REPO)
+    if raw_url:
+        print(f"✅ GitHub 업데이트 완료: {raw_url}")
+    else:
+        print("❌ GitHub 업데이트 실패")
 else:
     print("⚠️ GITHUB_TOKEN이 설정되지 않았습니다. GitHub 업데이트를 건너뜁니다.") 
