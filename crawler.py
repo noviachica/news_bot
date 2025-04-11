@@ -303,7 +303,11 @@ def deduplicate_articles(df):
             continue
             
         # 유사도 기반 그룹화
-        similar_groups = group_similar_articles(group.to_dict(orient='records'))
+        group_dict = group.to_dict(orient='records')
+        print(f"  - 그룹 데이터 형식: {type(group_dict)}")
+        print(f"  - 그룹 데이터 길이: {len(group_dict)}")
+        
+        similar_groups = group_similar_articles(group_dict)
         
         # 각 유사 그룹에서 기사 선택
         for group_idx, group_articles in enumerate(similar_groups, 1):
