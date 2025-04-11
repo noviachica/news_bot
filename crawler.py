@@ -177,9 +177,32 @@ def main():
         
         logger.info(f"크롤링 결과를 {output_file}에 저장했습니다.")
         
+        # 파일 존재 여부와 내용 확인
+        if os.path.exists(output_file):
+            logger.info(f"{output_file} 파일이 성공적으로 생성되었습니다.")
+            file_size = os.path.getsize(output_file)
+            logger.info(f"파일 크기: {file_size} bytes")
+            
+            # 파일 내용 일부 확인
+            with open(output_file, 'r', encoding='utf-8') as f:
+                content = f.read(500)  # 처음 500자만 읽기
+                logger.info(f"파일 내용 시작 부분:\n{content}")
+        else:
+            logger.error(f"{output_file} 파일이 생성되지 않았습니다.")
+            raise FileNotFoundError(f"{output_file} 파일이 생성되지 않았습니다.")
+        
         # shorten.py 실행
         logger.info("중복 제거를 시작합니다...")
-        subprocess.run(['python', 'shorten.py'], check=True)
+        try:
+            logger.info("shorten.py 실행 시도...")
+            result = subprocess.run(['python', 'shorten.py'], check=True, capture_output=True, text=True)
+            logger.info(f"shorten.py 실행 결과: {result.stdout}")
+            if result.stderr:
+                logger.error(f"shorten.py 실행 중 오류: {result.stderr}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"shorten.py 실행 실패: {str(e)}")
+            logger.error(f"오류 출력: {e.stderr}")
+            raise
         
     except Exception as e:
         logger.error(f"프로그램 실행 중 오류 발생: {str(e)}")
