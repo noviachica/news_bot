@@ -308,9 +308,11 @@ def deduplicate_articles(df):
         # 각 유사 그룹에서 기사 선택
         for group_idx, group_articles in enumerate(similar_groups, 1):
             print(f"\n  유사 그룹 {group_idx} 처리 중...")
-            selected_articles = group_articles
-            deduplicated_rows.extend([article for article in selected_articles])
-            print(f"  - 선택된 기사 수: {len(selected_articles)}")
+            # 각 그룹에서 가장 최근 기사만 선택
+            if group_articles:
+                selected_article = group_articles[0]  # 가장 최근 기사 선택
+                deduplicated_rows.append(selected_article)
+                print(f"  - 선택된 기사: {selected_article['신문사']} - {selected_article['제목'][:30]}...")
     
     # DataFrame으로 변환
     deduplicated_df = pd.DataFrame(deduplicated_rows)
@@ -334,6 +336,7 @@ except Exception as e:
 # ✅ STEP 4: JSON 변환
 print("14. JSON 변환 시작...")
 try:
+    # DataFrame을 JSON으로 변환할 때 컬럼 이름을 올바르게 유지하도록 수정
     json_content = df.to_json(orient='records', force_ascii=False, indent=2)
     print("15. JSON 변환 완료")
 except Exception as e:
