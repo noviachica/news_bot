@@ -49,13 +49,17 @@ def get_google_sheets_data():
         worksheet = spreadsheet.get_worksheet(0)
         print("7. 스프레드시트 접근 성공")
         
-        # 데이터 가져오기
-        data = worksheet.get_all_records()
-        print(f"8. 총 {len(data)}개의 레코드를 가져왔습니다.")
+        # 헤더 행 가져오기
+        headers = worksheet.row_values(1)
+        print("8. 헤더 행:", headers)
+        
+        # 데이터 가져오기 (중복 헤더 처리)
+        data = worksheet.get_all_records(expected_headers=headers)
+        print(f"9. 총 {len(data)}개의 레코드를 가져왔습니다.")
         
         # DataFrame으로 변환
         df = pd.DataFrame(data)
-        print("9. DataFrame 변환 완료")
+        print("10. DataFrame 변환 완료")
         return df
         
     except Exception as e:
